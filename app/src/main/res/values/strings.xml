@@ -4,4 +4,6 @@
     <string name="widget_ring_label">Token Pulse · Ring</string>
     <string name="widget_wide_desc">Session and weekly limits, live reset countdown, today\'s spend</string>
     <string name="widget_ring_desc">Session limit ring with live reset countdown</string>
+    <string name="widget_limits_label">Token Pulse · Limits</string>
+    <string name="widget_limits_desc">Just the 5-hour session and weekly limits with reset times</string>
 </resources>

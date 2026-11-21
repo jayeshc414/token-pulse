@@ -38,6 +38,12 @@ class RingWidgetProvider : AppWidgetProvider() {
     }
 }
 
+class LimitsWidgetProvider : AppWidgetProvider() {
+    override fun onUpdate(context: Context, manager: AppWidgetManager, ids: IntArray) {
+        Widgets.updateAll(context)
+    }
+}
+
 class RefreshReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
         Sync.now(context)
@@ -94,6 +100,11 @@ object Widgets {
         if (ring.isNotEmpty()) {
             val rv = ringViews(context, snap)
             ring.forEach { mgr.updateAppWidget(it, rv) }
+        }
+        val limits = mgr.getAppWidgetIds(ComponentName(context, LimitsWidgetProvider::class.java))
+        if (limits.isNotEmpty()) {
+            val rv = limitsViews(context, snap)
+            limits.forEach { mgr.updateAppWidget(it, rv) }
         }
     }
 
@@ -156,6 +167,32 @@ object Widgets {
         return rv
     }
 
+    private fun limitsViews(context: Context, s: Snapshot?): RemoteViews {
+        val rv = RemoteViews(context.packageName, R.layout.widget_limits)
+        rv.setOnClickPendingIntent(R.id.root, openApp(context))
+        val fh = s?.plan?.fiveHour
+        val wk = s?.plan?.sevenDay
+        if (fh != null) {
+            rv.setTextViewText(R.id.s_pct, Fmt.pct(fh.pct))
+            rv.setImageViewBitmap(R.id.s_bar, Render.bar(400, 12, fh.pct, Palette.forPct(fh.pct, Palette.accent, Palette.accentHi)))
+            rv.countdown(R.id.s_countdown, fh.resetsAt)
+        } else {
+            rv.setTextViewText(R.id.s_pct, "--")
+            rv.setImageViewBitmap(R.id.s_bar, Render.bar(400, 12, 0.0, Palette.accent to Palette.accentHi))
+            rv.setViewVisibility(R.id.s_countdown, View.GONE)
+        }
+        if (wk != null) {
+            rv.setTextViewText(R.id.w_pct, Fmt.pct(wk.pct))
+            rv.setTextViewText(R.id.w_reset, Fmt.until(wk.resetsAt))
+            rv.setImageViewBitmap(R.id.w_bar, Render.bar(400, 12, wk.pct, Palette.forPct(wk.pct, Palette.amber, Palette.amberHi)))
+        } else {
+            rv.setTextViewText(R.id.w_pct, "--")
+            rv.setTextViewText(R.id.w_reset, if (s == null) "open app" else "no plan data")
+            rv.setImageViewBitmap(R.id.w_bar, Render.bar(400, 12, 0.0, Palette.amber to Palette.amberHi))
+        }
+        return rv
+    }
+
     private fun ringViews(context: Context, s: Snapshot?): RemoteViews {
         val rv = RemoteViews(context.packageName, R.layout.widget_ring)
         rv.setOnClickPendingIntent(R.id.root, openApp(context))
@@ -212,6 +249,21 @@ object Render {
         }
         c.drawArc(r, -90f, sweep, false, glow)
         c.drawArc(r, -90f, sweep, false, p)
+    }
+
+    fun bar(w: Int, h: Int, pct: Double, colors: Pair<Int, Int>): Bitmap {
+        val bmp = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
+        val c = Canvas(bmp)
+        val r = h / 2f
+        c.drawRoundRect(RectF(0f, 0f, w.toFloat(), h.toFloat()), r, r, Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Palette.track })
+        val fill = (w * pct.coerceIn(0.0, 100.0) / 100.0).toFloat()
+        if (fill > 0f) {
+            val p = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                shader = LinearGradient(0f, 0f, w.toFloat(), 0f, colors.first, colors.second, Shader.TileMode.CLAMP)
+            }
+            c.drawRoundRect(RectF(0f, 0f, fill.coerceAtLeast(h.toFloat()), h.toFloat()), r, r, p)
+        }
+        return bmp
     }
 
     fun spark(w: Int, h: Int, values: List<Double>): Bitmap {
