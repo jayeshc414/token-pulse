@@ -52,6 +52,10 @@ schtasks /Create /SC MINUTE /MO 5 /TN "TokenPulseSync" /TR "node C:\path\to\clau
 
 Other flags: `--print` (show the JSON and don't upload), `--out file.json`, `--no-limits`, `--interval 10`.
 
+## More than one computer (work + personal)
+
+Run the sync on each computer. On the first one `setup` creates the Gist and prints its ID. On every other computer, run `setup` and paste that same Gist ID (and a gist-scope token) when asked. Each computer uploads its own `claude-usage-<name>.json`, and the app adds them all together. Plan limits are per account, so the most recent sync supplies them. If a computer uses a different Claude account, its limits will compete with the others, so keep to one account per Gist.
+
 ## Where the numbers come from
 
 | Shown | Source |

@@ -175,7 +175,7 @@ private fun Header(s: Snapshot?, state: UiState, now: Instant, onRefresh: () -> 
                 Dot(if (live) TP.sage else TP.faint, 7.dp)
                 Spacer(Modifier.width(7.dp))
                 Text(
-                    if (s == null) "Not connected" else "Synced ${Fmt.ago(s.generatedAt, now)} · ${s.host}",
+                    if (s == null) "Not connected" else "Synced ${Fmt.ago(s.generatedAt, now)} · " + (if (s.deviceCount > 1) "${s.deviceCount} computers" else s.host),
                     style = MaterialTheme.typography.bodySmall,
                     color = TP.muted,
                 )

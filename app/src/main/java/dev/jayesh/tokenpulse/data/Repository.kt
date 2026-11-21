@@ -96,11 +96,16 @@ class Repository(context: Context) {
         }
         val body = JSONObject(get("https://api.github.com/gists/$cleanId", headers))
         val files = body.getJSONObject("files")
-        val file = files.optJSONObject("claude-usage.json")
-            ?: files.keys().asSequence().firstOrNull()?.let { files.getJSONObject(it) }
-            ?: error("Gist has no files")
-        if (file.optBoolean("truncated", false)) return get(file.getString("raw_url"), headers)
-        return file.getString("content")
+        val usage = files.keys().asSequence()
+            .filter { it.startsWith("claude-usage") && it.endsWith(".json") }
+            .map { files.getJSONObject(it) }
+            .toList()
+            .ifEmpty { files.keys().asSequence().take(1).map { files.getJSONObject(it) }.toList() }
+        if (usage.isEmpty()) error("Gist has no files")
+        val contents = usage.map { f ->
+            if (f.optBoolean("truncated", false)) get(f.getString("raw_url"), headers) else f.getString("content")
+        }
+        return contents.joinToString(",", "[", "]")
     }
 
     private fun get(url: String, headers: Map<String, String>): String {

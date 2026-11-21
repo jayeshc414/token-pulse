@@ -51,9 +51,80 @@ data class Snapshot(
     val daily: List<DayPoint>,
     val models: List<Ranked>,
     val projects: List<Ranked>,
+    val todayDate: String = "",
+    val deviceCount: Int = 1,
 ) {
     companion object {
-        fun parse(json: String): Snapshot = fromJson(JSONObject(json))
+        /** Accepts one snapshot object, or an array of them (one per computer) and merges. */
+        fun parse(json: String): Snapshot {
+            val t = json.trim()
+            if (!t.startsWith("[")) return fromJson(JSONObject(t))
+            val a = JSONArray(t)
+            return merge((0 until a.length()).map { fromJson(a.getJSONObject(it)) })
+        }
+
+        private fun addT(a: Totals, b: Totals) = Totals(
+            a.cost + b.cost, a.input + b.input, a.output + b.output, a.cacheWrite + b.cacheWrite,
+            a.cacheRead + b.cacheRead, a.tokens + b.tokens, a.messages + b.messages,
+        )
+
+        private val zero = Totals(0.0, 0, 0, 0, 0, 0, 0)
+
+        private fun mergeRanked(lists: List<List<Ranked>>): List<Ranked> {
+            val m = HashMap<String, Pair<Double, Long>>()
+            lists.flatten().forEach { r ->
+                val o = m[r.name]
+                m[r.name] = ((o?.first ?: 0.0) + r.cost) to ((o?.second ?: 0L) + r.tokens)
+            }
+            val total = m.values.sumOf { it.first }
+            return m.entries
+                .map { Ranked(it.key, it.value.first, it.value.second, if (total > 0) it.value.first / total else 0.0) }
+                .sortedWith(compareByDescending<Ranked> { it.cost }.thenByDescending { it.tokens })
+                .take(6)
+        }
+
+        /** Adds up several computers. Plan limits are account-wide, so the freshest one wins. */
+        fun merge(list: List<Snapshot>): Snapshot {
+            require(list.isNotEmpty()) { "No usage files found in the gist" }
+            if (list.size == 1) return list[0]
+            val now = Instant.now()
+            val newest = list.maxBy { it.generatedAt }
+            val todayOnes = list.filter { it.todayDate == newest.todayDate }
+            val monthOnes = list.filter { it.monthLabel == newest.monthLabel }
+            val planSrc = list.filter { it.plan?.fiveHour != null }.maxByOrNull { it.generatedAt }
+                ?: list.firstOrNull { it.plan != null }
+            val blocks = list.mapNotNull { it.block }.filter { it.end.isAfter(now) }
+            val block = if (blocks.isEmpty()) null else Block(
+                start = blocks.minOf { it.start },
+                end = blocks.maxOf { it.end },
+                totals = blocks.map { it.totals }.fold(zero, ::addT),
+                burnRatePerHour = blocks.sumOf { it.burnRatePerHour },
+                tokensPerMinute = blocks.sumOf { it.tokensPerMinute },
+                projectedCost = blocks.sumOf { it.projectedCost },
+            )
+            val days = HashMap<String, Pair<Double, Long>>()
+            list.flatMap { it.daily }.forEach { d ->
+                val o = days[d.date]
+                days[d.date] = ((o?.first ?: 0.0) + d.cost) to ((o?.second ?: 0L) + d.tokens)
+            }
+            val daily = days.entries.sortedBy { it.key }.map { DayPoint(it.key, it.value.first, it.value.second) }.takeLast(14)
+            return Snapshot(
+                generatedAt = newest.generatedAt,
+                host = list.map { it.host }.distinct().joinToString(" + "),
+                plan = planSrc?.plan,
+                planError = if (planSrc?.plan != null) null else newest.planError,
+                block = block,
+                today = todayOnes.map { it.today }.fold(zero, ::addT),
+                sessionsToday = todayOnes.sumOf { it.sessionsToday },
+                month = monthOnes.map { it.month }.fold(zero, ::addT),
+                monthLabel = newest.monthLabel,
+                daily = daily,
+                models = mergeRanked(list.map { it.models }),
+                projects = mergeRanked(list.map { it.projects }),
+                todayDate = newest.todayDate,
+                deviceCount = list.size,
+            )
+        }
 
         private fun JSONObject.str(key: String): String? =
             if (has(key) && !isNull(key)) getString(key) else null
@@ -136,6 +207,7 @@ data class Snapshot(
                 daily = daily,
                 models = ranked(j.optJSONArray("models")),
                 projects = ranked(j.optJSONArray("projects")),
+                todayDate = todayObj?.optString("date", "") ?: "",
             )
         }
     }

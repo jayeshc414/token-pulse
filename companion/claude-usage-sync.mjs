@@ -24,7 +24,12 @@ import readline from "node:readline";
 import { execFileSync } from "node:child_process";
 
 const VERSION = "1.0.0";
-const GIST_FILE = "claude-usage.json";
+const DEVICE_SLUG = (process.env.TOKEN_PULSE_DEVICE || os.hostname() || "device")
+  .toLowerCase()
+  .replace(/[^a-z0-9]+/g, "-")
+  .replace(/^-+|-+$/g, "") || "device";
+// One file per computer, all in the same gist. The app adds them together.
+const GIST_FILE = `claude-usage-${DEVICE_SLUG}.json`;
 const CONFIG_PATH = path.join(os.homedir(), ".claude-usage-sync.json");
 const FIVE_HOURS = 5 * 60 * 60 * 1000;
 const DAY = 24 * 60 * 60 * 1000;
@@ -293,7 +298,7 @@ function buildSnapshot(entries, now) {
     schema: 1,
     source: `token-pulse-sync/${VERSION}`,
     generatedAt: new Date(now).toISOString(),
-    host: os.hostname(),
+    host: process.env.TOKEN_PULSE_DEVICE || os.hostname(),
     timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
     plan: null,
     planError: null,
@@ -415,6 +420,10 @@ async function setup() {
   if (!token) throw new Error("A token is required.");
   cfg.githubToken = token;
   if (!cfg.gistId) {
+    const existing = await ask("Gist ID from your other computer (press Enter if this is your first computer): ");
+    if (existing) cfg.gistId = existing.split("/").pop();
+  }
+  if (!cfg.gistId) {
     const snap = buildSnapshot(readEntries(DEFAULT_PRICING, Date.now() - 31 * DAY), Date.now());
     const gist = await gh("POST", "/gists", token, {
       description: "Token Pulse — Claude Code usage snapshot",
@@ -426,7 +435,8 @@ async function setup() {
   cfg.intervalMinutes = cfg.intervalMinutes || 5;
   saveConfig(cfg);
   console.log(`\n✔ Saved ${CONFIG_PATH}`);
-  console.log(`\n   Gist ID →  ${cfg.gistId}\n`);
+  console.log(`\n   Gist ID →  ${cfg.gistId}   (this computer: ${DEVICE_SLUG})\n`);
+  console.log("   More computers? Run setup on each one and paste this same Gist ID when asked.");
   console.log("2. In the app: Settings → GitHub Gist → paste the Gist ID.");
   console.log("   (Add the same token in the app too if you want faster, unthrottled refreshes.)");
   console.log("3. Keep it fresh: node claude-usage-sync.mjs --watch\n");
