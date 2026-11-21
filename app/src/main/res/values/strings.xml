@@ -1,0 +1,7 @@
+<resources>
+    <string name="app_name">Token Pulse</string>
+    <string name="widget_wide_label">Token Pulse · Dashboard</string>
+    <string name="widget_ring_label">Token Pulse · Ring</string>
+    <string name="widget_wide_desc">Session and weekly limits, live reset countdown, today\'s spend</string>
+    <string name="widget_ring_desc">Session limit ring with live reset countdown</string>
+</resources>

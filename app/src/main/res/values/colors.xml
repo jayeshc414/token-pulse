@@ -1,0 +1,9 @@
+<resources>
+    <color name="tp_bg">#FF0F0E0D</color>
+    <color name="tp_surface">#FF1A1816</color>
+    <color name="tp_text">#FFF3EEE8</color>
+    <color name="tp_muted">#FF9A928A</color>
+    <color name="tp_accent">#FFE07A52</color>
+    <color name="tp_amber">#FFF2B35B</color>
+    <color name="ic_bg">#FF151311</color>
+</resources>
